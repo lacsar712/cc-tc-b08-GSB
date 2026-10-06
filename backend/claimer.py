@@ -3,7 +3,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from models import ConvergenceLog, SessionLocal
+from models import ConvergenceLog, SessionLocal, engine
 from rules import judge
 
 _stop = threading.Event()
@@ -12,13 +12,15 @@ _stop = threading.Event()
 def claim_once() -> bool:
     db = SessionLocal()
     try:
-        row = (
+        q = (
             db.query(ConvergenceLog)
             .filter(ConvergenceLog.status == "pending")
             .order_by(ConvergenceLog.id)
-            .with_for_update(skip_locked=True)
-            .first()
         )
+        # SKIP LOCKED 仅 PostgreSQL 支持；本地 SQLite 冒烟时单线程认领即可。
+        if engine.dialect.name == "postgresql":
+            q = q.with_for_update(skip_locked=True)
+        row = q.first()
         if row is None:
             db.commit()
             return False
