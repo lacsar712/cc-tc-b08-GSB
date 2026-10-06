@@ -12,13 +12,14 @@ _stop = threading.Event()
 def claim_once() -> bool:
     db = SessionLocal()
     try:
-        row = (
+        q = (
             db.query(ConvergenceLog)
             .filter(ConvergenceLog.status == "pending")
             .order_by(ConvergenceLog.id)
-            .with_for_update(skip_locked=True)
-            .first()
         )
+        if db.bind.dialect.name == "postgresql":
+            q = q.with_for_update(skip_locked=True)
+        row = q.first()
         if row is None:
             db.commit()
             return False
